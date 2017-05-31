@@ -24,7 +24,7 @@ void arrayPrint(double * array, int len, FILE* f){
  }
 
 void timeStep(double* previous, double* next, int len){
-   
+
    double leftEdge  = previous[0];
    double rightEdge = previous[len-1];
 
@@ -50,33 +50,25 @@ void usage(){
 }
 
 void set_args(int argc, char* argv[],int* N, int* T, char* fileName){
-   int newT;
-   int newN;
-   if (argc ==1){
-   // There are no arguments
-   newT = 10;
-   *T = newT;
-   newN = 5;
-   *N = newN;
-   
+   int tIsSet=0;
+   int nIsSet=0;
 
-   } 
    while ((argc >1) && (argv[1][0] == '-')){
    // argv[1][1] is the option character
       switch(argv[1][1]){
          case 'o':
             //set output file
-            fileName=&argv[2];
+            strcpy(fileName,argv[2]);
             break;
          case 'n':
             //set grid points
-            newN=atoi(argv[2]);
-            *N=newN;
+            *N=atoi(argv[2]);
+				nIsSet=1;
             break;
          case 't':
             //set time steps
-            newT=atoi(argv[2]);
-            *T=newT;
+            *T=atoi(argv[2]);
+				tIsSet=1;
             break;
          default:
             printf("Bad option %s\n",argv[1]);
@@ -85,6 +77,12 @@ void set_args(int argc, char* argv[],int* N, int* T, char* fileName){
       argv+=2;
       argc-=2;
    }
+	if(!tIsSet){
+		*T=10;
+	}
+	if(!nIsSet){
+		*N=10;
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -97,19 +95,19 @@ int main(int argc, char *argv[]) {
    set_args(argc, argv, &N, &T, out_file);
 
    double dx = 1/(double)N;
- 
- 
+
+
    // Pre allocate memory for U_t[t,x]
    double  U_t[T][N];
    //memset(U_t,0,sizeof(double)*N*T);
 
-   // Set output file  
+   // Set output file
    FILE* f = fopen(out_file,"w");
    if (f == NULL){
       printf("Error opening file!\n");
       exit(1);
    }
-   
+
    // Set initial conditions
    int i;
    for(i=0; i<N;i++){
@@ -120,17 +118,17 @@ int main(int argc, char *argv[]) {
    int t_index;
 // For each time step
    for(t_index = 1; t_index < T; t_index++){
-//  Do a forward step 
-      
+//  Do a forward step
+
       // Pointer magic, *U_t+X means
       // go to where U_t begins and advance +X elements.
       // A 2D array of dimension nxm starts a new row after m
       // elements.
-      
-      double* previous = (*U_t+(t_index-1)*N); 
+
+      double* previous = (*U_t+(t_index-1)*N);
       double* next = (*U_t+(t_index)*N);
       timeStep(previous, next,N);
-      
+
       arrayPrint(next,N,f);
    }
 
