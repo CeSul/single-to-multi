@@ -3,10 +3,10 @@ CFLAGS= -g
 OBJS= convection.o
 
 convection:  $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o convection
+	$(CC) $(CFLAGS) $(OBJS) -lm -o convection
 
 convection.o: convection.c
-	$(CC) $(CFLAGS)  -c convection.c
+	$(CC) $(CFLAGS) -c convection.c
 
 clean :
 	rm *.o
