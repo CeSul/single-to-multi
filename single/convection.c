@@ -14,10 +14,28 @@ void arrayPrint(double * array, int len, FILE* f){
    fprintf(f,"\n");
  }
 
+void timeStep(double* previous, double* next, int len){
+   
+   double leftEdge  = previous[0];
+   double rightEdge = previous[len-1];
+
+   int i;
+   for(i=1; i < len-1; i++){
+      // Parallelizable portion
+      // Next step depend on previous
+      next[i] = (previous[i-1] + previous[i+1])/2;
+   }
+   // Enforce periodic boundary conditions
+
+   next[0] = (previous[1]+rightEdge)/2;
+   // len-1 is end of array, len-1-1 is left neighbor of end
+   next[len-1] = (leftEdge+previous[len-1-1])/2;
+}
+
 int main(int argc, char const *argv[]) {
    // Set constants
-   int N = 5; // Number of grid points
-   int T = 10;
+   int N = 5e0; // Number of grid points
+   int T = 1e1;
  
    double dx = 1/(double)N;
    double dt = 1/(double)T;
@@ -43,23 +61,19 @@ int main(int argc, char const *argv[]) {
    // Set initial conditions
    int i;
    for(i=0; i<N;i++){
-      U_t[0][i] = 10*exp( - ( pow(i-(double)N/3,2) ) );
+      U_t[0][i] = 10*exp( - ( pow((double)i*dx-0.5,2)/0.05 ) );
    }
    arrayPrint(*U_t,N,f);
 
    int t_index;
 // For each time step
    for(t_index = 1; t_index < T; t_index++){
-//  Do a forward step (This part parallizable)
-      for(i=1; i < N-1; i++){
-         U_t[t_index][i] = (U_t[t_index-1][i-1]+U_t[t_index-1][i+1])/2;
-      }
-    //Enforce Periodic boundary conditions
-   U_t[t_index][N-1] = (U_t[t_index-1][N-2]+U_t[t_index-1][0])/2;
-   U_t[t_index][0] = (U_t[t_index-1][1]+U_t[t_index-1][N-1])/2;
-
-   double * array_to_print = (*U_t+t_index*N);
-   arrayPrint(array_to_print,N,f);
+//  Do a forward step 
+      double* previous = (*U_t+(t_index-1)*N);
+      double* next = (*U_t+(t_index)*N);
+      timeStep(previous, next,N);
+      
+      arrayPrint(next,N,f);
    }
 
   return 0;
