@@ -1,10 +1,18 @@
 // 1-D heat transfer
 // Each site take the value of the mean of left and right neighbors.
+/******************************************************************************/
+// Usage: convection [options]
 //
+// Options:
+//    -o <file>         Sends output to a file             (default = out.txt)
+//    -n <grid_pts>     Sets the number of gris_pts to use (default = 5)
+//    -t <time_step>    Sets number of time steps to use   (default = 10)
+/******************************************************************************/
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
+char* program_name;
 
 void arrayPrint(double * array, int len, FILE* f){
    int index = 0;
@@ -32,12 +40,62 @@ void timeStep(double* previous, double* next, int len){
    // len-1 is end of array, len-1-1 is left neighbor of end
    next[len-1] = (leftEdge+previous[len-1-1])/2;
 }
+void usage(){
+   printf("Usage is %s [options]\n",program_name);
+   printf("Options:\n");
+   printf("-o <file>       Sends output to a file            (default = out.txt)\n");
+   printf("-n <grid_pts>   Sets number of grid points to use (default=5)\n");
+   printf("-t <time_steps> Sets number of grid points to use (default=10)\n");
+   exit(8);
+}
 
-int main(int argc, char const *argv[]) {
+void set_args(int argc, char* argv[],int* N, int* T, char* fileName){
+   int newT;
+   int newN;
+   if (argc ==1){
+   // There are no arguments
+   newT = 10;
+   *T = newT;
+   newN = 5;
+   *N = newN;
+   
+
+   } 
+   while ((argc >1) && (argv[1][0] == '-')){
+   // argv[1][1] is the option character
+      switch(argv[1][1]){
+         case 'o':
+            //set output file
+            fileName=&argv[2];
+            break;
+         case 'n':
+            //set grid points
+            newN=atoi(argv[2]);
+            *N=newN;
+            break;
+         case 't':
+            //set time steps
+            newT=atoi(argv[2]);
+            *T=newT;
+            break;
+         default:
+            printf("Bad option %s\n",argv[1]);
+            usage();
+      }
+      argv+=2;
+      argc-=2;
+   }
+}
+
+int main(int argc, char *argv[]) {
+   program_name=argv[0];
    // Set constants
-   int N = 5e0; // Number of grid points
-   int T = 1e1; // Number of time steps
- 
+   int N; // Number of grid points
+   int T; // Number of time steps
+   char out_file[] = "outfile.txt";
+   // Override defaults for options
+   set_args(argc, argv, &N, &T, out_file);
+
    double dx = 1/(double)N;
  
  
@@ -46,7 +104,7 @@ int main(int argc, char const *argv[]) {
    //memset(U_t,0,sizeof(double)*N*T);
 
    // Set output file  
-   FILE* f = fopen("out.txt","w");
+   FILE* f = fopen(out_file,"w");
    if (f == NULL){
       printf("Error opening file!\n");
       exit(1);
