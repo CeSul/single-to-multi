@@ -1,5 +1,6 @@
-// 1-D convection equation
-// du/dt + v du/dx = 0
+// 1-D heat transfer
+// Each site take the value of the mean of left and right neighbors.
+//
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -35,22 +36,15 @@ void timeStep(double* previous, double* next, int len){
 int main(int argc, char const *argv[]) {
    // Set constants
    int N = 5e0; // Number of grid points
-   int T = 1e1;
+   int T = 1e1; // Number of time steps
  
    double dx = 1/(double)N;
-   double dt = 1/(double)T;
-   double tfinal = 1.0;
-   double t = 0;
  
-   // heat transfer
-   double v = 1.0;
  
-   double b = dt*dx/v;
-   double a = (1+b);
-   
    // Pre allocate memory for U_t[t,x]
    double  U_t[T][N];
-   memset(U_t,0,sizeof(double)*N*T);
+   //memset(U_t,0,sizeof(double)*N*T);
+
    // Set output file  
    FILE* f = fopen("out.txt","w");
    if (f == NULL){
@@ -69,7 +63,13 @@ int main(int argc, char const *argv[]) {
 // For each time step
    for(t_index = 1; t_index < T; t_index++){
 //  Do a forward step 
-      double* previous = (*U_t+(t_index-1)*N);
+      
+      // Pointer magic, *U_t+X means
+      // go to where U_t begins and advance +X elements.
+      // A 2D array of dimension nxm starts a new row after m
+      // elements.
+      
+      double* previous = (*U_t+(t_index-1)*N); 
       double* next = (*U_t+(t_index)*N);
       timeStep(previous, next,N);
       
