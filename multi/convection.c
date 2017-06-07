@@ -164,7 +164,7 @@ void set_args(int argc, char* argv[],int* N, int* T, char* fileName){
 
 void initialize(int argc, char* argv[], int* N, int* T,int* n_part,
                 int world_rank,int* partner_rank,
-                FILE** f,char* fileName, int  U_t_ptr) {
+                FILE** f,char* fileName, double** U_t_Ptr) {
 // Initialize constants and starting heat data
 //initialize(argc, argv, &N, &T,&n_part,world_rank,&partner_rank, &dx, &f,out_file, &U_t);
   //
@@ -190,15 +190,15 @@ void initialize(int argc, char* argv[], int* N, int* T,int* n_part,
   // we'll take the extra grid point
   // This only works for two workers!
   if (max_n%2==1 & world_rank==1){
-    n_part++;
+    *n_part++;
   }
 
   *partner_rank=(world_rank+1)%2;
 
   // Set initial conditions
-  *U_t = calloc(max_n*max_t,sizeof(double));
-  double* U_t_Ptr = *U_t;
-  printf("Setting initial conditions, U_t size = %dX%d = %lu\n", max_n,max_t,sizeof(*U_t));
+  double* U_t = calloc(max_n*max_t,sizeof(double));
+  *U_t_Ptr = U_t;
+  printf("Setting initial conditions, U_t size = %dX%d = %lu\n", max_n,max_t,sizeof(U_t));
   int i;
   for(i=0; i<*n_part;i++){
     // Initial heat is some crazy function, don't worry too much about it
@@ -207,11 +207,11 @@ void initialize(int argc, char* argv[], int* N, int* T,int* n_part,
                (double)(i+(*n_part)*world_rank)*(dx)-0.5
                 ,2)/0.05 ) );
     */
-     U_t_Ptr[i] = (double)i+(*n_part)*world_rank;
+     U_t[i] = (double)i+(*n_part)*world_rank;
      printf("In rank %d, U_t_Ptr[%d] = %f\n",world_rank, i,U_t[i]);
   }
 
-  arrayPrint(U_t_Ptr,max_n,*f);
+  arrayPrint(U_t,*n_part,*f);
 
 }
 
@@ -228,8 +228,8 @@ int main(int argc, char * argv[]) {
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
    // We are assuming at least 2 processes for this task
-   if (world_size >= 2) {
-     fprintf(stderr, "World size must equal to 2 for %s\n", argv[0]);
+   if (world_size < 2) {
+     fprintf(stderr, "World size must at least 2 for %s\n", argv[0]);
      MPI_Abort(MPI_COMM_WORLD, 1);
    }
 
@@ -257,7 +257,7 @@ int main(int argc, char * argv[]) {
       double* next = (U_t+(t_index)*N);
     //  timeStep(double* previous, double* next, int len, int world_rank,int partner_rank,int world_size)
       timeStep(previous, next,n_part,world_rank,partner_rank,world_size);
-      arrayPrint(next,N,f);
+      arrayPrint(next,n_part,f);
    }
   MPI_Finalize();
   return 0;
