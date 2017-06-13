@@ -25,7 +25,7 @@ void arrayPrint(double * array, int len, FILE* f){
    fprintf(f,"\n");
  }
 
-void timeStep(double* previous, double* next, int len, int world_rank,int partner_rank,int world_size){
+void timeStep(double* previous, double* next, int len, int world_rank,int world_size){
   /*
   1. all workers calculate on inner elements (ignore edge effects)
   2. Calculate the worldLeft
@@ -43,70 +43,55 @@ void timeStep(double* previous, double* next, int len, int world_rank,int partne
      // Next step depend on previous
      next[i] = (previous[i-1] + previous[i+1])/2;
   }
-  double worldLeft,worldRight;
-  double leftNeighbor,rightNeighbor;
+  //double worldLeft,    worldRight;
+  double leftNeighbor, rightNeighbor;
+  double leftRank,     rightRank;
 
-	if (world_rank == 0){
-     /*
-    2. Calculate worldLeft // periodic boundary conditions
-      a) receive worldRight from last rank
-      b) next[0] = (left neighbor + prev[1])/2
-		 */
+  double localLeft = previous[0];
+  double localRight = previous[len-1];
 
-		MPI_Recv(&worldRight,1, MPI_DOUBLE,partner_rank,0,
+  if (world_rank == 0){
+    // Set periodic boundary conditions
+    leftRank = world_size-1;
+  }else{
+		leftRank = world_rank+1;
+	}
+  if (world_rank == world_size-1){
+    // Set periodic boundary conditions
+    rightRank = 0;
+  }else{
+		rightRank = world_rank-1;
+	}
+
+  // Step 2 Compute local left
+// The edge ranks
+  if( world_rank == 0 || world_rank == (world_size-1) ){
+    // Send localRight to rightRank
+		MPI_Send(&localRight,1,MPI_DOUBLE,rightRank,0,MPI_COMM_WORLD);
+  }
+  // receive leftNeighbor from leftRank
+	MPI_Recv(&leftNeighbor,1, MPI_DOUBLE,leftRank,0,
 						 MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-		next[0] = (worldRight + previous[1])/2;
 
-    //3. rank 1 calculates its local left
-		// send left most to rank 1
+  // The middle ranks
+	if ( world_rank != 0 && world_rank!=(world_size-1) ){
+		MPI_Send(&localRight,1,MPI_DOUBLE,rightRank,0,MPI_COMM_WORLD);
+	}
+	next[0] = (leftNeighbor + previous[0])/2;
 
-		double localRight = previous[len];
-		MPI_Send(&localRight,1,MPI_DOUBLE,partner_rank,0,MPI_COMM_WORLD);
-
-    /*
-			4. Calculate right most // edge of local array
-      	a) receive left most from rank 1
-      	b) next[n_part] = (right neighbor + prev[n_part-1-1])
-		*/
-
-		MPI_Recv(&rightNeighbor,1, MPI_DOUBLE,partner_rank,0,
-						 MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-		next[len-1] = (rightNeighbor+ previous[len-1-1])/2;
-
-    //5. Send left most to rank 1 // periodic boundary conditions
-
-		worldLeft = previous[0];
-		MPI_Send(&worldLeft,1,MPI_DOUBLE,partner_rank,0,MPI_COMM_WORLD);
-
-   }else{
-
-     //2. Send right most to rank 0 // periodic boundary conditions
-     worldRight = previous[len-1];
-     MPI_Send(&worldRight,1,MPI_DOUBLE,partner_rank,0,MPI_COMM_WORLD);
-     /*
-     3. Calculate left most // edge of local array
-      a) receive right most from rank 1
-      b) next[0] = (left neighbor + prev[1])/2
-      */
-		MPI_Recv(&leftNeighbor,1, MPI_DOUBLE,partner_rank,0,
-						 MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-		next[0] = (leftNeighbor + previous[1])/2;
-
-//   4. send left most to rank 1
-		 double localLeft=previous[0];
-     MPI_Send(&localLeft,1,MPI_DOUBLE,partner_rank,0,MPI_COMM_WORLD);
-
-    /*
-     5. Calculate worldRight // periodic boundary conditions
-      a) receive worldLeft most from rank 0
-      b) next[n_part-1] = (worldLeft + previous[n_part-1-1])/2
-     */
-
-		MPI_Recv(&worldLeft,1, MPI_DOUBLE,partner_rank,0,
-						 MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-// len-1-1 is left neighbor of end point
-		next[len-1] = (worldLeft + previous[len-1-1])/2;
-   }
+  // Step 3 Calculate local right
+  if( world_rank == 0 || world_rank == (world_size-1) ){
+  // Send localLeft to leftRank
+    MPI_Send(&localLeft,1,MPI_DOUBLE,leftRank,0,MPI_COMM_WORLD);
+  }
+  // receive rightNeighbor from rightRank
+  MPI_Recv(&rightNeighbor,1, MPI_DOUBLE,rightRank,0,
+             MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+  // The middle ranks
+  if ( world_rank != 0 && world_rank!=(world_size-1) ){
+    MPI_Send(&localLeft,1,MPI_DOUBLE,leftRank,0,MPI_COMM_WORLD);
+  }
+  next[len-1] = (rightNeighbor + previous[len-1])/2;
 }
 void usage(){
    printf("Usage is %s [options]\n",program_name);
@@ -163,10 +148,11 @@ void set_args(int argc, char* argv[],int* N, int* T, char* fileName){
 }
 
 void initialize(int argc, char* argv[], int* N, int* T,int* n_part,
-                int world_rank,int* partner_rank,
+                int world_rank, int world_size,
                 FILE** f,char* fileName, double** U_t_Ptr) {
+                  //TODO update for >2 workers
 // Initialize constants and starting heat data
-//initialize(argc, argv, &N, &T,&n_part,world_rank,&partner_rank, &dx, &f,out_file, &U_t);
+
   //
   set_args(argc, argv, N, T, fileName);
   // Replace the _x in the outfile name with the world_rank
@@ -185,15 +171,13 @@ void initialize(int argc, char* argv[], int* N, int* T,int* n_part,
   }
 
   // Num of grid points per worker
-  *n_part=max_n/2;
+  *n_part=max_n/world_size;
   // if there are an odd number of points, & we are the the last portion,
   // we'll take the extra grid point
   // This only works for two workers!
-  if (max_n%2==1 & world_rank==1){
-    *n_part++;
+  if (max_n%world_size!=0 & world_rank==(world_size-1) ){
+    *n_part+=(max_n%world_size);
   }
-
-  *partner_rank=(world_rank+1)%2;
 
   // Set initial conditions
   double* U_t = calloc(max_n*max_t,sizeof(double));
@@ -227,6 +211,8 @@ int main(int argc, char * argv[]) {
    int world_size;
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
+   printf("Starting rank %d/%d\n", world_rank,world_size);
+
    // We are assuming at least 2 processes for this task
    if (world_size < 2) {
      fprintf(stderr, "World size must at least 2 for %s\n", argv[0]);
@@ -242,7 +228,7 @@ int main(int argc, char * argv[]) {
    double* U_t;
    char out_file[] = "outfile.txt_x";
 
-   initialize(argc, argv, &N, &T,&n_part,world_rank,&partner_rank, &f,out_file, &U_t);
+   initialize(argc, argv, &N, &T,&n_part,world_rank,world_size, &f,out_file, &U_t);
 
      int t_index;
 // For each time step
@@ -256,7 +242,7 @@ int main(int argc, char * argv[]) {
       double* previous = (U_t+(t_index-1)*N);
       double* next = (U_t+(t_index)*N);
     //  timeStep(double* previous, double* next, int len, int world_rank,int partner_rank,int world_size)
-      timeStep(previous, next,n_part,world_rank,partner_rank,world_size);
+      timeStep(previous, next,n_part,world_rank,world_size);
       arrayPrint(next,n_part,f);
    }
   MPI_Finalize();
