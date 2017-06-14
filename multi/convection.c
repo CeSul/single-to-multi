@@ -37,39 +37,46 @@ void timeStep(double* previous, double* next, int len, int world_rank,int world_
   */
   // Step 1
   // Calculate next step on inner elements (ignore edge effects)
+  //printf("Calculating inner elements\n");
   int i;
   for(i=1; i < len-1; i++){
      // Parallelizable portion
      // Next step depend on previous
      next[i] = (previous[i-1] + previous[i+1])/2;
+     //printf("Rank %d, next[%d] = %f\n",world_rank,i,next[i]);
   }
   //double worldLeft,    worldRight;
   double leftNeighbor, rightNeighbor;
-  double leftRank,     rightRank;
+  int leftRank,     rightRank;
 
   double localLeft = previous[0];
   double localRight = previous[len-1];
-
+  //printf("Setting left and right ranks\n");
+// Set left Rank
   if (world_rank == 0){
     // Set periodic boundary conditions
     leftRank = world_size-1;
   }else{
-		leftRank = world_rank+1;
+		leftRank = world_rank-1;
 	}
+
+// Set right rank
   if (world_rank == world_size-1){
     // Set periodic boundary conditions
     rightRank = 0;
   }else{
-		rightRank = world_rank-1;
+		rightRank = world_rank+1;
 	}
 
+  //printf("Rank %d: Left rank is %d Right rank is %d\n",world_rank,leftRank,rightRank);
+  //printf("Rank %d computing local left\n",world_size);
   // Step 2 Compute local left
 // The edge ranks
   if( world_rank == 0 || world_rank == (world_size-1) ){
     // Send localRight to rightRank
 		MPI_Send(&localRight,1,MPI_DOUBLE,rightRank,0,MPI_COMM_WORLD);
   }
-  // receive leftNeighbor from leftRank
+  // Everyone should receive leftNeighbor from leftRank
 	MPI_Recv(&leftNeighbor,1, MPI_DOUBLE,leftRank,0,
 						 MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
@@ -77,9 +84,12 @@ void timeStep(double* previous, double* next, int len, int world_rank,int world_
 	if ( world_rank != 0 && world_rank!=(world_size-1) ){
 		MPI_Send(&localRight,1,MPI_DOUBLE,rightRank,0,MPI_COMM_WORLD);
 	}
+
+// Everyone do this calculation
 	next[0] = (leftNeighbor + previous[0])/2;
 
   // Step 3 Calculate local right
+  //printf("Rank %d computing local righi\n",world_size);
   if( world_rank == 0 || world_rank == (world_size-1) ){
   // Send localLeft to leftRank
     MPI_Send(&localLeft,1,MPI_DOUBLE,leftRank,0,MPI_COMM_WORLD);
@@ -92,6 +102,13 @@ void timeStep(double* previous, double* next, int len, int world_rank,int world_
     MPI_Send(&localLeft,1,MPI_DOUBLE,leftRank,0,MPI_COMM_WORLD);
   }
   next[len-1] = (rightNeighbor + previous[len-1])/2;
+
+/*
+  free(&leftNeighbor);
+  free(&rightNeighbor);
+  free(&leftRank);
+  free(&rightRank);
+*/
 }
 void usage(){
    printf("Usage is %s [options]\n",program_name);
@@ -182,7 +199,7 @@ void initialize(int argc, char* argv[], int* N, int* T,int* n_part,
   // Set initial conditions
   double* U_t = calloc(max_n*max_t,sizeof(double));
   *U_t_Ptr = U_t;
-  printf("Setting initial conditions, U_t size = %dX%d = %lu\n", max_n,max_t,sizeof(U_t));
+  //printf("Setting initial conditions, U_t size = %dX%d = %lu\n", max_n,max_t,sizeof(*U_t));
   int i;
   for(i=0; i<*n_part;i++){
     // Initial heat is some crazy function, don't worry too much about it
@@ -192,7 +209,7 @@ void initialize(int argc, char* argv[], int* N, int* T,int* n_part,
                 ,2)/0.05 ) );
     */
      U_t[i] = (double)i+(*n_part)*world_rank;
-     printf("In rank %d, U_t_Ptr[%d] = %f\n",world_rank, i,U_t[i]);
+     //printf("In rank %d, U_t_Ptr[%d] = %f\n",world_rank, i,U_t[i]);
   }
 
   arrayPrint(U_t,*n_part,*f);
