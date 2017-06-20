@@ -16,16 +16,22 @@
 #include <mpi.h>
 char* program_name;
 
-void arrayPrint(double * array, int len, FILE* f){
-   int index = 0;
-   for(index = 0; index < len; index ++){
-     double value = array[index];
-     fprintf(f,"%4f ", array[index]);
-   }
+void arrayPrint(double * array, int len, int height, FILE* f){
+      //double* next = (U_t+(t_index)*N);
+   int row;
+   int col;
+   for(row=0; row < height; row++){
+     //double* timeStep = array+row*len;
+     for(col = 0; col < len; col ++){
+       //double value = timeStep[col];
+       double value = *array+(row*len+col);
+       fprintf(f,"%4f ", value);
+     }
    fprintf(f,"\n");
- }
+   }
+}
 
-void timeStep(double* previous, double* next, int len, int world_rank,int world_size){
+void timeStep(double** previous_ptr, double** next_ptr, int len, int world_rank,int world_size){
   /*
   1. all workers calculate on inner elements (ignore edge effects)
   2. Calculate the worldLeft
@@ -38,11 +44,16 @@ void timeStep(double* previous, double* next, int len, int world_rank,int world_
   // Step 1
   // Calculate next step on inner elements (ignore edge effects)
   //printf("Calculating inner elements\n");
+
+  double* previous = *previous_ptr;
+  double* next = *next_ptr;
+
   int i;
   for(i=1; i < len-1; i++){
      // Parallelizable portion
      // Next step depend on previous
      next[i] = (previous[i-1] + previous[i+1])/2;
+     printf("Rank %d: next[%d] = %f\n", world_rank, i,next[i]);
      //printf("Rank %d, next[%d] = %f\n",world_rank,i,next[i]);
   }
   //double worldLeft,    worldRight;
@@ -87,6 +98,7 @@ void timeStep(double* previous, double* next, int len, int world_rank,int world_
 
 // Everyone do this calculation
 	next[0] = (leftNeighbor + previous[0])/2;
+  printf("Rank %d: next[0] = %f\n", world_rank,next[0]);
 
   // Step 3 Calculate local right
   //printf("Rank %d computing local righi\n",world_size);
@@ -102,6 +114,7 @@ void timeStep(double* previous, double* next, int len, int world_rank,int world_
     MPI_Send(&localLeft,1,MPI_DOUBLE,leftRank,0,MPI_COMM_WORLD);
   }
   next[len-1] = (rightNeighbor + previous[len-1])/2;
+  printf("Rank %d: next[%d] = %f\n\n", world_rank,len-1,next[len-1]);
 
 /*
   free(&leftNeighbor);
@@ -188,6 +201,7 @@ void initialize(int argc, char* argv[], int* N, int* T,int* n_part,
   }
 
   // Num of grid points per worker
+
   *n_part=max_n/world_size;
   // if there are an odd number of points, & we are the the last portion,
   // we'll take the extra grid point
@@ -201,18 +215,20 @@ void initialize(int argc, char* argv[], int* N, int* T,int* n_part,
   *U_t_Ptr = U_t;
   //printf("Setting initial conditions, U_t size = %dX%d = %lu\n", max_n,max_t,sizeof(*U_t));
   int i;
+  int buffer=(max_n/world_size)*world_rank;
   for(i=0; i<*n_part;i++){
     // Initial heat is some crazy function, don't worry too much about it
     /* *U_t[i] = 10*exp( - (
-               pow(
-               (double)(i+(*n_part)*world_rank)*(dx)-0.5
-                ,2)/0.05 ) );
+               pow((double)(i+buffer)*(dx)-0.5,2)
+               /0.05 ) );
     */
-     U_t[i] = (double)i+(*n_part)*world_rank;
-     //printf("In rank %d, U_t_Ptr[%d] = %f\n",world_rank, i,U_t[i]);
+
+     U_t[i] = (double)(i+buffer);
+     //*(U_t+i) = (double)(i+buffer);
+     printf("In rank %d, U_t_Ptr[%d] = %f\n",world_rank, i,U_t[i]);
   }
 
-  arrayPrint(U_t,*n_part,*f);
+  //arrayPrint(U_t,*n_part,*f);
 
 }
 
@@ -256,12 +272,13 @@ int main(int argc, char * argv[]) {
       // A 2D array of dimension nxm starts a new row after m
       // elements.
 
-      double* previous = (U_t+(t_index-1)*N);
-      double* next = (U_t+(t_index)*N);
+      double* previous = ( U_t+( (t_index-1)*n_part) );
+      double* next = ( U_t+(t_index*n_part) );
     //  timeStep(double* previous, double* next, int len, int world_rank,int partner_rank,int world_size)
-      timeStep(previous, next,n_part,world_rank,world_size);
-      arrayPrint(next,n_part,f);
+      timeStep(&previous, &next,n_part,world_rank,world_size);
+      //arrayPrint(next,n_part,f);
    }
+  arrayPrint(U_t,n_part,T,f);
   MPI_Finalize();
   return 0;
 }
