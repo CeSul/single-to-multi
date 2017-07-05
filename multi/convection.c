@@ -53,7 +53,7 @@ void timeStep(double** previous_ptr, double** next_ptr, int len, int world_rank,
      // Parallelizable portion
      // Next step depend on previous
      next[i] = (previous[i-1] + previous[i+1])/2;
-     printf("Rank %d: next[%d] = %f\n", world_rank, i,next[i]);
+     //printf("Rank %d: next[%d] = %f\n", world_rank, i,next[i]);
      //printf("Rank %d, next[%d] = %f\n",world_rank,i,next[i]);
   }
   //double worldLeft,    worldRight;
@@ -98,7 +98,7 @@ void timeStep(double** previous_ptr, double** next_ptr, int len, int world_rank,
 
 // Everyone do this calculation
 	next[0] = (leftNeighbor + previous[1])/2;
-  printf("Rank %d: next[0] = %f\n", world_rank,next[0]);
+  //printf("Rank %d: next[0] = %f\n", world_rank,next[0]);
 
   // Step 3 Calculate local right
   //printf("Rank %d computing local righi\n",world_size);
@@ -114,7 +114,7 @@ void timeStep(double** previous_ptr, double** next_ptr, int len, int world_rank,
     MPI_Send(&localLeft,1,MPI_DOUBLE,leftRank,0,MPI_COMM_WORLD);
   }
   next[len-1] = (rightNeighbor + previous[len-1-1])/2;
-  printf("Rank %d: next[%d] = %f\n\n", world_rank,len-1-1,next[len-1-1]);
+  //printf("Rank %d: next[%d] = %f\n\n", world_rank,len-1-1,next[len-1-1]);
 
 /*
   free(&leftNeighbor);
@@ -278,6 +278,7 @@ int main(int argc, char * argv[]) {
       //arrayPrint(next,n_part,f);
    }
   arrayPrint(&U_t,n_part,T,f);
+  printf("Ending rank %d/%d\n", world_rank,world_size);
   MPI_Finalize();
   return 0;
 }
