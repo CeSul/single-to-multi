@@ -16,15 +16,15 @@
 #include <mpi.h>
 char* program_name;
 
-void arrayPrint(double * array, int len, int height, FILE* f){
+void arrayPrint(double ** array_ptr, int len, int height, FILE* f){
       //double* next = (U_t+(t_index)*N);
    int row;
    int col;
+   double * array = *array_ptr;
+   double value;
    for(row=0; row < height; row++){
-     //double* timeStep = array+row*len;
      for(col = 0; col < len; col ++){
-       //double value = timeStep[col];
-       double value = *array+(row*len+col);
+       value = *(array+(row*len+col));
        fprintf(f,"%4f ", value);
      }
    fprintf(f,"\n");
@@ -97,7 +97,7 @@ void timeStep(double** previous_ptr, double** next_ptr, int len, int world_rank,
 	}
 
 // Everyone do this calculation
-	next[0] = (leftNeighbor + previous[0])/2;
+	next[0] = (leftNeighbor + previous[1])/2;
   printf("Rank %d: next[0] = %f\n", world_rank,next[0]);
 
   // Step 3 Calculate local right
@@ -113,8 +113,8 @@ void timeStep(double** previous_ptr, double** next_ptr, int len, int world_rank,
   if ( world_rank != 0 && world_rank!=(world_size-1) ){
     MPI_Send(&localLeft,1,MPI_DOUBLE,leftRank,0,MPI_COMM_WORLD);
   }
-  next[len-1] = (rightNeighbor + previous[len-1])/2;
-  printf("Rank %d: next[%d] = %f\n\n", world_rank,len-1,next[len-1]);
+  next[len-1] = (rightNeighbor + previous[len-1-1])/2;
+  printf("Rank %d: next[%d] = %f\n\n", world_rank,len-1-1,next[len-1-1]);
 
 /*
   free(&leftNeighbor);
@@ -218,17 +218,16 @@ void initialize(int argc, char* argv[], int* N, int* T,int* n_part,
   int buffer=(max_n/world_size)*world_rank;
   for(i=0; i<*n_part;i++){
     // Initial heat is some crazy function, don't worry too much about it
-    /* *U_t[i] = 10*exp( - (
+
+     *(U_t+i) = 10*exp( - (
                pow((double)(i+buffer)*(dx)-0.5,2)
                /0.05 ) );
-    */
 
-     U_t[i] = (double)(i+buffer);
+
      //*(U_t+i) = (double)(i+buffer);
-     printf("In rank %d, U_t_Ptr[%d] = %f\n",world_rank, i,U_t[i]);
+     //printf("In rank %d, U_t_Ptr[%d] = %f\n",world_rank, i,U_t[i]);
   }
 
-  //arrayPrint(U_t,*n_part,*f);
 
 }
 
@@ -278,7 +277,7 @@ int main(int argc, char * argv[]) {
       timeStep(&previous, &next,n_part,world_rank,world_size);
       //arrayPrint(next,n_part,f);
    }
-  arrayPrint(U_t,n_part,T,f);
+  arrayPrint(&U_t,n_part,T,f);
   MPI_Finalize();
   return 0;
 }
