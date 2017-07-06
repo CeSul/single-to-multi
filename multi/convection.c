@@ -279,6 +279,7 @@ int main(int argc, char * argv[]) {
    }
   arrayPrint(&U_t,n_part,T,f);
   printf("Ending rank %d/%d\n", world_rank,world_size);
+  fclose(f);
   MPI_Finalize();
   return 0;
 }
