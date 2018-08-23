@@ -6,7 +6,7 @@
 //
 // Options:
 //    -o <file>         Sends output to a file             (default = out.txt)
-//    -n <grid_pts>     Sets the number of gris_pts to use (default = 5)
+//    -n <grid_pts>     Sets the number of gris_pts to use (default = 10)
 //    -t <time_step>    Sets number of time steps to use   (default = 10)
 /******************************************************************************/
 #include <stdio.h>
@@ -18,6 +18,7 @@ char* program_name;
 
 void arrayPrint(double ** array_ptr, int len, int height, FILE* f){
       //double* next = (U_t+(t_index)*N);
+      // Each worker will create output for their own array
    int row;
    int col;
    double * array = *array_ptr;
@@ -51,7 +52,7 @@ void timeStep(double** previous_ptr, double** next_ptr, int len, int world_rank,
   int i;
   for(i=1; i < len-1; i++){
      // Parallelizable portion
-     // Next step depend on previous
+     // but step depend on previous
      next[i] = (previous[i-1] + previous[i+1])/2;
      //printf("Rank %d: next[%d] = %f\n", world_rank, i,next[i]);
      //printf("Rank %d, next[%d] = %f\n",world_rank,i,next[i]);
@@ -84,7 +85,7 @@ void timeStep(double** previous_ptr, double** next_ptr, int len, int world_rank,
   // Step 2 Compute local left
 // The edge ranks
   if( world_rank == 0 || world_rank == (world_size-1) ){
-    // Send localRight to rightRank
+    // Send localRight to rightRank if you're at the edge of world
 		MPI_Send(&localRight,1,MPI_DOUBLE,rightRank,0,MPI_COMM_WORLD);
   }
   // Everyone should receive leftNeighbor from leftRank
@@ -103,7 +104,7 @@ void timeStep(double** previous_ptr, double** next_ptr, int len, int world_rank,
   // Step 3 Calculate local right
   //printf("Rank %d computing local righi\n",world_size);
   if( world_rank == 0 || world_rank == (world_size-1) ){
-  // Send localLeft to leftRank
+  // Send localLeft to leftRank if you're at the edge of the world
     MPI_Send(&localLeft,1,MPI_DOUBLE,leftRank,0,MPI_COMM_WORLD);
   }
   // receive rightNeighbor from rightRank
@@ -116,18 +117,12 @@ void timeStep(double** previous_ptr, double** next_ptr, int len, int world_rank,
   next[len-1] = (rightNeighbor + previous[len-1-1])/2;
   //printf("Rank %d: next[%d] = %f\n\n", world_rank,len-1-1,next[len-1-1]);
 
-/*
-  free(&leftNeighbor);
-  free(&rightNeighbor);
-  free(&leftRank);
-  free(&rightRank);
-*/
 }
 void usage(){
    printf("Usage is %s [options]\n",program_name);
    printf("Options:\n");
    printf("-o <file>       Sends output to a file            (default = out.txt)\n");
-   printf("-n <grid_pts>   Sets number of grid points to use (default=5)\n");
+   printf("-n <grid_pts>   Sets number of grid points to use (default=10)\n");
    printf("-t <time_steps> Sets number of grid points to use (default=10)\n");
    exit(8);
 }
@@ -211,6 +206,9 @@ void initialize(int argc, char* argv[], int* N, int* T,int* n_part,
   }
 
   // Set initial conditions
+  // Pre allocate memory for U_t[t,x] data for heat as function of
+  // position and time.
+
   double* U_t = calloc(max_n*max_t,sizeof(double));
   *U_t_Ptr = U_t;
   //printf("Setting initial conditions, U_t size = %dX%d = %lu\n", max_n,max_t,sizeof(*U_t));

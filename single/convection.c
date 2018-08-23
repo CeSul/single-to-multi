@@ -5,7 +5,7 @@
 //
 // Options:
 //    -o <file>         Sends output to a file             (default = out.txt)
-//    -n <grid_pts>     Sets the number of gris_pts to use (default = 5)
+//    -n <grid_pts>     Sets the number of gris_pts to use (default = 10)
 //    -t <time_step>    Sets number of time steps to use   (default = 10)
 /******************************************************************************/
 #include <stdio.h>
@@ -31,7 +31,7 @@ void timeStep(double* previous, double* next, int len){
    int i;
    for(i=1; i < len-1; i++){
       // Parallelizable portion
-      // Next step depend on previous
+      // but next step depend on previous
       next[i] = (previous[i-1] + previous[i+1])/2;
    }
    // Enforce periodic boundary conditions
@@ -44,7 +44,7 @@ void usage(){
    printf("Usage is %s [options]\n",program_name);
    printf("Options:\n");
    printf("-o <file>       Sends output to a file            (default = out.txt)\n");
-   printf("-n <grid_pts>   Sets number of grid points to use (default=5)\n");
+   printf("-n <grid_pts>   Sets number of grid points to use (default=10)\n");
    printf("-t <time_steps> Sets number of grid points to use (default=10)\n");
    exit(8);
 }
@@ -97,9 +97,9 @@ int main(int argc, char *argv[]) {
    double dx = 1/(double)N;
 
 
-   // Pre allocate memory for U_t[t,x]
+   // Pre allocate memory for U_t[t,x] data for heat as function of
+   // position and time.
    double  U_t[T][N];
-   //memset(U_t,0,sizeof(double)*N*T);
 
    // Set output file
    FILE* f = fopen(out_file,"w");
@@ -127,6 +127,7 @@ int main(int argc, char *argv[]) {
 
       double* previous = (*U_t+(t_index-1)*N);
       double* next = (*U_t+(t_index)*N);
+      // Calculate heat as function of time during the next time step
       timeStep(previous, next,N);
 
       arrayPrint(next,N,f);
